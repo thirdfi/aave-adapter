@@ -140,7 +140,7 @@ describe("Adapter on Ethereum", async () => {
       expect(await aWETH.balanceOf(a1.address)).equal(0);
     });
 
-    it("Should be correctly deposited with ETH", async () => {
+    it("Should be correctly deposited ETH", async () => {
       const balance = await etherBalance(a1.address);
       await usdt.approve(adapter.address, MaxUint256);
 
@@ -177,7 +177,7 @@ describe("Adapter on Ethereum", async () => {
       expect(await aWETH.balanceOf(a1.address)).equal(0);
     });
 
-    it("Should be correctly borrowed with ETH", async () => {
+    it("Should be correctly borrowed ETH", async () => {
       const usdc = new ethers.Contract('0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48', ERC20_ABI, a1);
       const dataProviderArtifact = await deployments.getArtifact("IAaveProtocolDataProvider");
       const dataProvider = new ethers.Contract(await adapter.V2_DATA_PROVIDER(), dataProviderArtifact.abi, a1);
@@ -186,11 +186,10 @@ describe("Adapter on Ethereum", async () => {
       const aUSDC = new ethers.Contract(ret[0], aTokenArtifact.abi, a1);
       const creditDelegationTokenArtifact = await deployments.getArtifact("V2_ICreditDelegationToken");
       ret = await dataProvider.getReserveTokensAddresses(weth.address);
-      stableDebtWETH = new ethers.Contract(ret[1], creditDelegationTokenArtifact.abi, a1);
+      const stableDebtWETH = new ethers.Contract(ret[1], creditDelegationTokenArtifact.abi, a1);
 
       await usdc.connect(deployer).transfer(a1.address, getUsdcAmount('10000'));
       await usdc.approve(adapter.address, MaxUint256);
-      await weth.approve(adapter.address, MaxUint256);
 
       // deposit
       await adapter.supply(version, usdc.address, getUsdcAmount('10000'));

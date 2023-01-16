@@ -25,7 +25,7 @@ contract AaveAdapter is OwnableUpgradeable, BaseRelayRecipient {
     IPool public immutable V3_POOL;
 
     IWETH public immutable WNATIVE;
-    address public immutable aNATIVE;
+    address public immutable aWNATIVE;
     address internal immutable stableDebtWNATIVE;
     address internal immutable variableDebtWNATIVE;
 
@@ -44,7 +44,7 @@ contract AaveAdapter is OwnableUpgradeable, BaseRelayRecipient {
         V3_POOL = IPool(v3Supported ? V3_ADDRESSES_PROVIDER.getPool() : address(0));
 
         WNATIVE = IWETH(_wnative);
-        (aNATIVE, stableDebtWNATIVE, variableDebtWNATIVE) = (address(V2_DATA_PROVIDER) != address(0))
+        (aWNATIVE, stableDebtWNATIVE, variableDebtWNATIVE) = (address(V2_DATA_PROVIDER) != address(0))
             ? V2_DATA_PROVIDER.getReserveTokensAddresses(_wnative)
             : V3_DATA_PROVIDER.getReserveTokensAddresses(_wnative);
     }
@@ -201,17 +201,17 @@ contract AaveAdapter is OwnableUpgradeable, BaseRelayRecipient {
         uint permitAmount, uint permitDeadline, uint8 permitV, bytes32 permitR, bytes32 permitS
     ) public {
         address account = _msgSender();
-        V3_IAToken(aNATIVE).permit(account, address(this), permitAmount, permitDeadline, permitV, permitR, permitS);
+        V3_IAToken(aWNATIVE).permit(account, address(this), permitAmount, permitDeadline, permitV, permitR, permitS);
         _withdrawETH(version, amount, account);
     }
 
     function _withdrawETH(uint version, uint amount, address account) internal {
         uint amountToWithdraw = amount;
         if (amount == type(uint).max) {
-            amountToWithdraw = IERC20Upgradeable(aNATIVE).balanceOf(account);
+            amountToWithdraw = IERC20Upgradeable(aWNATIVE).balanceOf(account);
         }
 
-        IERC20Upgradeable(aNATIVE).safeTransferFrom(account, address(this), amountToWithdraw);
+        IERC20Upgradeable(aWNATIVE).safeTransferFrom(account, address(this), amountToWithdraw);
         if (uint(VERSION.V2) == version) {
             V2_LENDING_POOL.withdraw(address(WNATIVE), amountToWithdraw, address(this));
         } else {
