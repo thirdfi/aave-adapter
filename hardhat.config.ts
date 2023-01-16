@@ -50,6 +50,14 @@ const config: HardhatUserConfig = {
     hardhat: {
       chainId: chainId,
     },
+    arbitrumMainnet: {
+      ...sharedNetworkConfig,
+      url: `https://arb1.arbitrum.io/rpc`,
+    },
+    arbitrumTestnet: {
+      ...sharedNetworkConfig,
+      url: `https://goerli-rollup.arbitrum.io/rpc`,
+    },
     auroraMainnet: {
       ...sharedNetworkConfig,
       url: `https://mainnet.aurora.dev`,
@@ -95,10 +103,20 @@ const config: HardhatUserConfig = {
       ...sharedNetworkConfig,
       url: `https://polygon-mumbai.g.alchemy.com/v2/${process.env.ALCHEMY_POLYGON_MUMBAI_API_KEY}`,
     },
+    optimismMainnet: {
+      ...sharedNetworkConfig,
+      url: `https://optimism-mainnet.infura.io`,
+    },
+    optimismTestnet: {
+      ...sharedNetworkConfig,
+      url: `https://goerli-optimism.etherscan.io/`,
+    },
   },
   etherscan: {
     apiKey: {
       // Refer to @nomiclabs/hardhat-etherscan/src/ChainConfig.ts
+      arbitrumOne: process.env.ARBITRUM_API_KEY || "",
+      arbitrumGoerli: process.env.ARBITRUM_API_KEY || "",
       aurora: process.env.AURORASCAN_API_KEY || "",
       auroraTestnet: process.env.AURORASCAN_API_KEY || "",
       avalanche: process.env.AVAXSCAN_API_KEY || "",
@@ -111,6 +129,8 @@ const config: HardhatUserConfig = {
       ftmTestnet: process.env.FANTOMSCAN_API_KEY || "",
       polygon: process.env.POLYGONSCAN_API_KEY || "",
       polygonMumbai: process.env.POLYGONSCAN_API_KEY || "",
+      optimisticEthereum: process.env.OPTIMISM_API_KEY || "",
+      optimisticGoerli: process.env.OPTIMISM_API_KEY || "",
     }
   },
   gasReporter: {
