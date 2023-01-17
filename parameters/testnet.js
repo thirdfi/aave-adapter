@@ -26,7 +26,7 @@ module.exports = {
       AddressesProvider: "0x1775ECC8362dB6CaB0c7A9C0957cF656A5276c29",
     },
     Token: {
-      WAVAX: "0xd00ae08403B9bbb9124bB305C09058E32C39A48c",
+      WAVAX: "0x407287b03D1167593AF113d32093942be13A535f",
     },
   },
 
@@ -54,7 +54,7 @@ module.exports = {
       AddressesProvider: "0x5343b5bA672Ae99d627A1C87866b8E53F47Db2E6",
     },
     Token: {
-      WMATIC: "0x9c3C9283D3e44854697Cd22D3Faa240Cfb032889",
+      WMATIC: "0xb685400156cF3CBE8725958DeAA61436727A30c3",
     },
   },
 

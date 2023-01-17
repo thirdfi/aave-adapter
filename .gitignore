@@ -11,4 +11,13 @@ artifacts
 coverage.json
 coverage
 
+deployments/arbitrumMainnet/solcInputs
+deployments/arbitrumTestnet/solcInputs
+deployments/avaxMainnet/solcInputs
+deployments/avaxTestnet/solcInputs
+deployments/ethMainnet/solcInputs
 deployments/ethGoerli/solcInputs
+deployments/maticMainnet/solcInputs
+deployments/maticMumbai/solcInputs
+deployments/optimismMainnet/solcInputs
+deployments/optimismTestnet/solcInputs

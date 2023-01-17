@@ -109,7 +109,7 @@ const config: HardhatUserConfig = {
     },
     optimismTestnet: {
       ...sharedNetworkConfig,
-      url: `https://goerli-optimism.etherscan.io/`,
+      url: `https://goerli.optimism.io`,
     },
   },
   etherscan: {
