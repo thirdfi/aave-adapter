@@ -51,6 +51,8 @@ describe("Adapter on Ethereum", async () => {
 
       const reservesTokens = await adapter.getAllReservesTokens();
       expect(reservesTokens.length).to.gt(0);
+
+      await adapter.getUserAccountData(version, deployer.address);
     });
   });
 

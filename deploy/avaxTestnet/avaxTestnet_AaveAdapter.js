@@ -12,6 +12,7 @@ module.exports = async ({ deployments }) => {
       network_.V2.DataProvider,
       network_.V3.AddressesProvider,
       network_.Token.WAVAX,
+      network_.V2.BaseCurrencyPriceSource,
     ],
     proxy: {
       proxyContract: "OpenZeppelinTransparentProxy",
@@ -41,6 +42,7 @@ module.exports = async ({ deployments }) => {
         network_.V2.DataProvider,
         network_.V3.AddressesProvider,
         network_.Token.WAVAX,
+        network_.V2.BaseCurrencyPriceSource,
       ],
     });
   } catch (e) {

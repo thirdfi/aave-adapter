@@ -92,3 +92,7 @@ interface V2_IAToken is IERC20Upgradeable {
 
     function _nonces(address owner) external view returns (uint256);
 }
+
+interface IPriceOracle {
+  function getAssetPrice(address asset) external view returns (uint256);
+}

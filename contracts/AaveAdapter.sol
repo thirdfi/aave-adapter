@@ -5,6 +5,7 @@ import "@openzeppelin/contracts-upgradeable/token/ERC20/IERC20Upgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/token/ERC20/utils/SafeERC20Upgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import {IWETH} from '@aave/core-v3/contracts/misc/interfaces/IWETH.sol';
+import "../interfaces/IChainlinkAggregator.sol";
 import "../libs/BaseRelayRecipient.sol";
 import "./aave2/Aave2DataTypes.sol";
 import "./aave2/Aave2Interfaces.sol";
@@ -19,6 +20,7 @@ contract AaveAdapter is OwnableUpgradeable, BaseRelayRecipient {
     ILendingPoolAddressesProvider public immutable V2_ADDRESSES_PROVIDER;
     IAaveProtocolDataProvider public immutable V2_DATA_PROVIDER;
     ILendingPool public immutable V2_LENDING_POOL;
+    IChainlinkAggregator public immutable V2_BASE_CURRENCY_PRICE_SOURCE;
 
     IPoolAddressesProvider public immutable V3_ADDRESSES_PROVIDER;
     IPoolDataProvider public immutable V3_DATA_PROVIDER;
@@ -30,13 +32,19 @@ contract AaveAdapter is OwnableUpgradeable, BaseRelayRecipient {
     address internal immutable variableDebtWNATIVE;
 
     /// @custom:oz-upgrades-unsafe-allow constructor
-    constructor(address _v2DataProvider, address _v3AddressesProvider, address _wnative) {
+    constructor(
+        address _v2DataProvider,
+        address _v3AddressesProvider,
+        address _wnative,
+        address _v2BaseCurrencyPriceSource
+    ) {
         _disableInitializers();
 
         bool v2Supported = _v2DataProvider != address(0) ? true : false;
         V2_DATA_PROVIDER = IAaveProtocolDataProvider(_v2DataProvider);
         V2_ADDRESSES_PROVIDER = ILendingPoolAddressesProvider(v2Supported ? V2_DATA_PROVIDER.ADDRESSES_PROVIDER() : address(0));
         V2_LENDING_POOL = ILendingPool(v2Supported ? V2_ADDRESSES_PROVIDER.getLendingPool() : address(0));
+        V2_BASE_CURRENCY_PRICE_SOURCE = IChainlinkAggregator(_v2BaseCurrencyPriceSource);
 
         bool v3Supported = _v3AddressesProvider != address(0) ? true : false;
         V3_ADDRESSES_PROVIDER = IPoolAddressesProvider(_v3AddressesProvider);
@@ -122,6 +130,39 @@ contract AaveAdapter is OwnableUpgradeable, BaseRelayRecipient {
             tokens[index].version = VERSION.V3;
             tokens[index].symbol = v3Tokens[i].symbol;
             tokens[index].tokenAddress = v3Tokens[i].tokenAddress;
+        }
+    }
+
+    /**
+   * @notice Returns the user account data across all the reserves
+   * @param user The address of the user
+   * @return totalCollateral The total collateral of the user in USD. The unit is 100000000
+   * @return totalDebt The total debt of the user in USD
+   * @return availableBorrows The borrowing power left of the user in USD
+   * @return currentLiquidationThreshold The liquidation threshold of the user
+   * @return ltv The loan to value of The user
+   * @return healthFactor The current health factor of the user
+   */
+    function getUserAccountData(uint version, address user) external view returns (
+        uint totalCollateral,
+        uint totalDebt,
+        uint availableBorrows,
+        uint currentLiquidationThreshold,
+        uint ltv,
+        uint healthFactor
+    ) {
+        if (uint(VERSION.V2) == version) {
+            // NOTE: It supports only Ethereum in V2 markets
+            int256 ethPrice = V2_BASE_CURRENCY_PRICE_SOURCE.latestAnswer();
+            (totalCollateral, totalDebt, availableBorrows, currentLiquidationThreshold, ltv, healthFactor) =  V2_LENDING_POOL.getUserAccountData(user);
+            unchecked {
+                totalCollateral = totalCollateral * uint(ethPrice) / 1e18;
+                totalDebt = totalDebt * uint(ethPrice) / 1e18;
+                availableBorrows = availableBorrows * uint(ethPrice) / 1e18;
+            }
+        } else {
+            // The base currency on AAVE v3 is USD. The unit is 100000000.
+            (totalCollateral, totalDebt, availableBorrows, currentLiquidationThreshold, ltv, healthFactor) =  V3_POOL.getUserAccountData(user);
         }
     }
 
