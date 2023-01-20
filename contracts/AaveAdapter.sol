@@ -20,16 +20,23 @@ contract AaveAdapter is OwnableUpgradeable, BaseRelayRecipient {
     ILendingPoolAddressesProvider public immutable V2_ADDRESSES_PROVIDER;
     IAaveProtocolDataProvider public immutable V2_DATA_PROVIDER;
     ILendingPool public immutable V2_LENDING_POOL;
+    IAaveIncentivesController public immutable V2_REWARDS_CONTROLLER;
     IChainlinkAggregator public immutable V2_BASE_CURRENCY_PRICE_SOURCE;
 
     IPoolAddressesProvider public immutable V3_ADDRESSES_PROVIDER;
     IPoolDataProvider public immutable V3_DATA_PROVIDER;
     IPool public immutable V3_POOL;
+    IRewardsController public immutable V3_REWARDS_CONTROLLER;
 
     IWETH public immutable WNATIVE;
-    address public immutable aWNATIVE;
-    address internal immutable stableDebtWNATIVE;
-    address internal immutable variableDebtWNATIVE;
+    address public immutable V2_aWNATIVE;
+    address internal immutable V2_stableDebtWNATIVE;
+    address internal immutable V2_variableDebtWNATIVE;
+    address public immutable V3_aWNATIVE;
+    address internal immutable V3_stableDebtWNATIVE;
+    address internal immutable V3_variableDebtWNATIVE;
+
+    uint internal constant IR_MODE_STABLE = 1;
 
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor(
@@ -52,9 +59,19 @@ contract AaveAdapter is OwnableUpgradeable, BaseRelayRecipient {
         V3_POOL = IPool(v3Supported ? V3_ADDRESSES_PROVIDER.getPool() : address(0));
 
         WNATIVE = IWETH(_wnative);
-        (aWNATIVE, stableDebtWNATIVE, variableDebtWNATIVE) = (address(V2_DATA_PROVIDER) != address(0))
+        (V2_aWNATIVE, V2_stableDebtWNATIVE, V2_variableDebtWNATIVE) = (address(V2_DATA_PROVIDER) != address(0))
             ? V2_DATA_PROVIDER.getReserveTokensAddresses(_wnative)
-            : V3_DATA_PROVIDER.getReserveTokensAddresses(_wnative);
+            : (address(0), address(0), address(0));
+        (V3_aWNATIVE, V3_stableDebtWNATIVE, V3_variableDebtWNATIVE) = (address(V3_DATA_PROVIDER) != address(0))
+            ? V3_DATA_PROVIDER.getReserveTokensAddresses(_wnative)
+            : (address(0), address(0), address(0));
+
+        V2_REWARDS_CONTROLLER = IAaveIncentivesController(V2_aWNATIVE != address(0)
+            ? V2_IAToken(V2_aWNATIVE).getIncentivesController()
+            : address(0));
+        V3_REWARDS_CONTROLLER = IRewardsController(V3_aWNATIVE != address(0)
+            ? V3_IAToken(V3_aWNATIVE).getIncentivesController()
+            : address(0));
     }
 
     function initialize(address _biconomy) public initializer {
@@ -242,11 +259,13 @@ contract AaveAdapter is OwnableUpgradeable, BaseRelayRecipient {
         uint permitAmount, uint permitDeadline, uint8 permitV, bytes32 permitR, bytes32 permitS
     ) public {
         address account = _msgSender();
+        address aWNATIVE = version == uint(VERSION.V2) ? V2_aWNATIVE : V3_aWNATIVE;
         V3_IAToken(aWNATIVE).permit(account, address(this), permitAmount, permitDeadline, permitV, permitR, permitS);
         _withdrawETH(version, amount, account);
     }
 
     function _withdrawETH(uint version, uint amount, address account) internal {
+        address aWNATIVE = version == uint(VERSION.V2) ? V2_aWNATIVE : V3_aWNATIVE;
         uint amountToWithdraw = amount;
         if (amount == type(uint).max) {
             amountToWithdraw = IERC20Upgradeable(aWNATIVE).balanceOf(account);
@@ -307,7 +326,7 @@ contract AaveAdapter is OwnableUpgradeable, BaseRelayRecipient {
         uint permitAmount, uint permitDeadline, uint8 permitV, bytes32 permitR, bytes32 permitS
     ) public {
         address account = _msgSender();
-        address debtToken = interestRateMode == 1 ? stableDebtWNATIVE : variableDebtWNATIVE;
+        address debtToken = interestRateMode == IR_MODE_STABLE ? V3_stableDebtWNATIVE : V3_variableDebtWNATIVE;
 
         V3_ICreditDelegationToken(debtToken).delegationWithSig(
             account, address(this),
@@ -348,7 +367,11 @@ contract AaveAdapter is OwnableUpgradeable, BaseRelayRecipient {
 
         uint paybackAmount = amount;
         if (amount == type(uint).max) {
-            paybackAmount = IERC20Upgradeable(interestRateMode == 1 ? stableDebtWNATIVE : variableDebtWNATIVE).balanceOf(account);
+            if (version == uint(VERSION.V2)) {
+                paybackAmount = IERC20Upgradeable(interestRateMode == IR_MODE_STABLE ? V2_stableDebtWNATIVE : V2_variableDebtWNATIVE).balanceOf(account);
+            } else {
+                paybackAmount = IERC20Upgradeable(interestRateMode == IR_MODE_STABLE ? V3_stableDebtWNATIVE : V3_variableDebtWNATIVE).balanceOf(account);
+            }
         }
 
         require(msg.value >= paybackAmount, 'msg.value is less than repayment amount');
@@ -476,6 +499,30 @@ contract AaveAdapter is OwnableUpgradeable, BaseRelayRecipient {
         withdrawETHWithPermit(version, withdrawalAmount,
             permitAmount, permitDeadline, permitV, permitR, permitS
         );
+    }
+
+    /**
+    * @dev Returns a list all rewards of a user, including already accrued and unrealized claimable rewards
+    * @param assets List of incentivized assets to check eligible distributions. It's used only for v3. It should be address of AToken or VariableDebtToken
+    * @param user The address of the user
+    * @return The list of reward addresses
+    * @return The list of unclaimed amount of rewards
+    **/
+    function getAllUserRewards(uint version, address[] calldata assets, address user) external view returns (address[] memory, uint[] memory) {
+        if (version == uint(VERSION.V2)) {
+            if (address(V2_REWARDS_CONTROLLER) != address(0)) {
+                address[] memory rewardsTokens = new address[](1);
+                uint[] memory rewardsAmounts = new uint[](1);
+                rewardsTokens[0] = V2_REWARDS_CONTROLLER.REWARD_TOKEN();
+                rewardsAmounts[0] = V2_REWARDS_CONTROLLER.getUserUnclaimedRewards(user);
+                return (rewardsTokens, rewardsAmounts);
+            }
+        } else {
+            if (address(V3_REWARDS_CONTROLLER) != address(0)) {
+                return V3_REWARDS_CONTROLLER.getAllUserRewards(assets, user);
+            }
+        }
+        return (new address[](0), new uint[](0));
     }
 
     /**

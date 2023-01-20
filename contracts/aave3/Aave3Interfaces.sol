@@ -124,7 +124,7 @@ interface V3_IAToken is IERC20Upgradeable {
 }
 
 interface IRewardsController {
-    /// @dev asset The incentivized asset. It should be address of AToken
+    /// @dev asset The incentivized asset. It should be address of AToken or VariableDebtToken
     function getRewardsByAsset(address asset) external view returns (address[] memory);
     function getRewardsData(address asset, address reward) external view returns (
       uint256 index,

@@ -47,10 +47,13 @@ describe("Adapter on Avalanche", async () => {
       expect(await adapter.V3_DATA_PROVIDER()).equal("0x69FA688f1Dc47d4B5d8029D5a35FB7a548310654");
       expect(await adapter.V3_POOL()).equal("0x794a61358D6845594F94dc1DB02A252b5b4814aD");
       expect(await adapter.WNATIVE()).equal(network_.Token.WAVAX);
-      expect(await adapter.aWNATIVE()).not.eq(ethers.constants.AddressZero);
+      expect(await adapter.V3_aWNATIVE()).not.eq(ethers.constants.AddressZero);
 
       const reservesTokens = await adapter.getAllReservesTokens();
       expect(reservesTokens.length).to.gt(0);
+
+      await adapter.getUserAccountData(version, deployer.address);
+      await adapter.getAllUserRewards(version, [await adapter.V3_aWNATIVE()], deployer.address);
     });
   });
 

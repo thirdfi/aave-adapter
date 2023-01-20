@@ -48,11 +48,14 @@ describe("Adapter on Ethereum", async () => {
       expect(await adapter.V2_DATA_PROVIDER()).equal(network_.V2.DataProvider);
       expect(await adapter.V2_ADDRESSES_PROVIDER()).equal("0xB53C1a33016B2DC2fF3653530bfF1848a515c8c5");
       expect(await adapter.V2_LENDING_POOL()).equal("0x7d2768dE32b0b80b7a3454c06BdAc94A69DDc7A9");
+      expect(await adapter.WNATIVE()).equal(network_.Token.WETH);
+      expect(await adapter.V2_aWNATIVE()).not.eq(ethers.constants.AddressZero);
 
       const reservesTokens = await adapter.getAllReservesTokens();
       expect(reservesTokens.length).to.gt(0);
 
       await adapter.getUserAccountData(version, deployer.address);
+      await adapter.getAllUserRewards(version, [], deployer.address);
     });
   });
 
