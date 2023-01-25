@@ -38,6 +38,13 @@ contract AaveAdapter is OwnableUpgradeable, BaseRelayRecipient {
 
     uint internal constant IR_MODE_STABLE = 1;
 
+    address internal constant NATIVE_ASSET = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
+
+    event Supply(address indexed account, uint version, address indexed asset, uint indexed amount);
+    event Withdraw(address indexed account, uint version, address indexed asset, uint indexed amount);
+    event Borrow(address indexed account, uint version, address indexed asset, uint indexed amount, uint interestRateMode);
+    event Repay(address indexed account, uint version, address indexed asset, uint indexed amount, uint interestRateMode);
+
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor(
         address _v2DataProvider,
@@ -193,6 +200,7 @@ contract AaveAdapter is OwnableUpgradeable, BaseRelayRecipient {
         } else {
             V3_POOL.supply(asset, amount, account, 0);
         }
+        emit Supply(account, version, asset, amount);
     }
 
     function supplyETH(uint version) payable public {
@@ -204,6 +212,7 @@ contract AaveAdapter is OwnableUpgradeable, BaseRelayRecipient {
         } else {
             V3_POOL.supply(address(WNATIVE), msg.value, account, 0);
         }
+        emit Supply(account, version, NATIVE_ASSET, msg.value);
     }
 
     /// @notice The user must approve this SC for the asset's aToken.
@@ -248,6 +257,7 @@ contract AaveAdapter is OwnableUpgradeable, BaseRelayRecipient {
         } else {
             V3_POOL.withdraw(asset, amountToWithdraw, account);
         }
+        emit Withdraw(account, version, asset, amountToWithdraw);
     }
 
     function withdrawETH(uint version, uint amount) public {
@@ -279,6 +289,7 @@ contract AaveAdapter is OwnableUpgradeable, BaseRelayRecipient {
         }
         WNATIVE.withdraw(amountToWithdraw);
         _safeTransferETH(account, amountToWithdraw);
+        emit Withdraw(account, version, NATIVE_ASSET, amountToWithdraw);
     }
 
     /// @notice The user must approve the delegation to this SC for the asset's debtToken.
@@ -290,6 +301,7 @@ contract AaveAdapter is OwnableUpgradeable, BaseRelayRecipient {
             V3_POOL.borrow(asset, amount, interestRateMode, 0, account);
         }
         IERC20Upgradeable(asset).safeTransfer(account, amount);
+        emit Borrow(account, version, asset, amount, interestRateMode);
     }
 
     /// @notice It works for only v3.
@@ -307,6 +319,7 @@ contract AaveAdapter is OwnableUpgradeable, BaseRelayRecipient {
 
         V3_POOL.borrow(asset, amount, interestRateMode, 0, account);
         IERC20Upgradeable(asset).safeTransfer(account, amount);
+        emit Borrow(account, uint(VERSION.V3), asset, amount, interestRateMode);
     }
 
     function borrowETH(uint version, uint amount, uint interestRateMode) public {
@@ -318,6 +331,7 @@ contract AaveAdapter is OwnableUpgradeable, BaseRelayRecipient {
         }
         WNATIVE.withdraw(amount);
         _safeTransferETH(account, amount);
+        emit Borrow(account, version, NATIVE_ASSET, amount, interestRateMode);
     }
 
     /// @notice It works for only v3.
@@ -335,6 +349,7 @@ contract AaveAdapter is OwnableUpgradeable, BaseRelayRecipient {
         V3_POOL.borrow(address(WNATIVE), amount, interestRateMode, 0, account);
         WNATIVE.withdraw(amount);
         _safeTransferETH(account, amount);
+        emit Borrow(account, uint(VERSION.V3), NATIVE_ASSET, amount, interestRateMode);
     }
 
     /// @notice The user must approve this SC for the asset.
@@ -360,6 +375,7 @@ contract AaveAdapter is OwnableUpgradeable, BaseRelayRecipient {
         } else {
             V3_POOL.repay(asset, paybackAmount, interestRateMode, account);
         }
+        emit Repay(account, version, asset, paybackAmount, interestRateMode);
     }
 
     function repayETH(uint version, uint amount, uint interestRateMode) payable public {
@@ -384,6 +400,7 @@ contract AaveAdapter is OwnableUpgradeable, BaseRelayRecipient {
 
         uint left = msg.value - paybackAmount;
         if (left > 0) _safeTransferETH(account, left);
+        emit Repay(account, version, NATIVE_ASSET, paybackAmount, interestRateMode);
     }
 
     function supplyAndBorrow(uint version,
