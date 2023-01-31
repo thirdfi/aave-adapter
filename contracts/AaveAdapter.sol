@@ -375,7 +375,10 @@ contract AaveAdapter is OwnableUpgradeable, BaseRelayRecipient {
         } else {
             V3_POOL.repay(asset, paybackAmount, interestRateMode, account);
         }
-        emit Repay(account, version, asset, paybackAmount, interestRateMode);
+
+        uint left = IERC20Upgradeable(asset).balanceOf(address(this));
+        if (left > 0) IERC20Upgradeable(asset).safeTransfer(account, left);
+        emit Repay(account, version, asset, paybackAmount-left, interestRateMode);
     }
 
     function repayETH(uint version, uint amount, uint interestRateMode) payable public {
@@ -398,9 +401,9 @@ contract AaveAdapter is OwnableUpgradeable, BaseRelayRecipient {
             V3_POOL.repay(address(WNATIVE), paybackAmount, interestRateMode, account);
         }
 
-        uint left = msg.value - paybackAmount;
+        uint left = address(this).balance;
         if (left > 0) _safeTransferETH(account, left);
-        emit Repay(account, version, NATIVE_ASSET, paybackAmount, interestRateMode);
+        emit Repay(account, version, NATIVE_ASSET, paybackAmount-left, interestRateMode);
     }
 
     function supplyAndBorrow(uint version,
