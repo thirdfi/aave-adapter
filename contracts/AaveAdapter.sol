@@ -18,6 +18,14 @@ contract AaveAdapter is OwnableUpgradeable, BaseRelayRecipient {
     using SafeERC20Upgradeable for IERC20Upgradeable;
     using SafeERC20Upgradeable for V3_IAToken;
 
+    struct Reward {
+        address token; // reward token addresses
+        string symbol; // reward token's symbol
+        uint8 decimals; // reward token's decimals
+        uint rewardAmount; // unclaimed reward amount
+        uint rewardValueInUSD; // unclaimed reward values in USD. It scaled by 8
+    }
+
     ILendingPoolAddressesProvider public immutable V2_ADDRESSES_PROVIDER;
     IAaveProtocolDataProvider public immutable V2_DATA_PROVIDER;
     ILendingPool public immutable V2_LENDING_POOL;
@@ -532,54 +540,65 @@ contract AaveAdapter is OwnableUpgradeable, BaseRelayRecipient {
     * @dev Returns a list all rewards of a user, including already accrued and unrealized claimable rewards
     * @param scaledBalanceTokens List of incentivized assets to check eligible distributions. It's used only for v3. It should be address of AToken or VariableDebtToken
     * @param user The address of the user
-    * @return rewardsTokens The list of reward addresses
-    * @return rewardsAmounts The list of unclaimed reward amount
-    * @return rewardsValuesInUSD The list of unclaimed reward values in USD. It scaled by 8
+    * @return The list of reward data
     **/
-    function getAllUserRewards(uint version, address[] calldata scaledBalanceTokens, address user) external view returns (
-        address[] memory rewardsTokens,
-        uint[] memory rewardsAmounts,
-        uint[] memory rewardsValuesInUSD
-    ) {
+    function getAllUserRewards(uint version, address[] calldata scaledBalanceTokens, address user) external view returns (Reward[] memory) {
         if (version == uint(VERSION.V2)) {
             if (address(V2_REWARDS_CONTROLLER) != address(0)) {
-                rewardsTokens = new address[](1);
-                rewardsAmounts = new uint[](1);
-                rewardsValuesInUSD = new uint[](1);
-                rewardsTokens[0] = V2_REWARDS_CONTROLLER.REWARD_TOKEN();
-                rewardsAmounts[0] = V2_REWARDS_CONTROLLER.getUserUnclaimedRewards(user);
+                address rewardToken = V2_REWARDS_CONTROLLER.REWARD_TOKEN();
+                uint rewardAmount = V2_REWARDS_CONTROLLER.getUserUnclaimedRewards(user);
+
+                Reward[] memory rewards = new Reward[](1);
+                rewards[0].token = rewardToken;
+                rewards[0].symbol = IERC20UpgradeableExt(rewardToken).symbol();
+                rewards[0].decimals = IERC20UpgradeableExt(rewardToken).decimals();
+                rewards[0].rewardAmount = rewardAmount;
 
                 // NOTE: It supports only Ethereum in V2 markets
-                uint valueInETH = getValueInBaseCurrency(V2_PRICE_ORACLE, getV2RewardOriginalToken(), rewardsAmounts[0]); // It scaled by 18
+                uint valueInETH = getValueInBaseCurrency(V2_PRICE_ORACLE, getV2RewardOriginalToken(), rewardAmount); // It scaled by 18
                 int256 ethPrice = V2_BASE_CURRENCY_PRICE_SOURCE.latestAnswer(); // It scaled by 8
-                rewardsValuesInUSD[0] = valueInETH * uint(ethPrice) / 1e18;
-                return (rewardsTokens, rewardsAmounts, rewardsValuesInUSD);
+                rewards[0].rewardValueInUSD = valueInETH * uint(ethPrice) / 1e18;
+
+                return rewards;
             }
         } else {
             if (address(V3_REWARDS_CONTROLLER) != address(0)) {
-                (rewardsTokens, rewardsAmounts) = V3_REWARDS_CONTROLLER.getAllUserRewards(scaledBalanceTokens, user);
-                rewardsValuesInUSD = new uint[](rewardsAmounts.length);
-                for (uint i = 0; i < rewardsAmounts.length; i ++) {
-                    rewardsValuesInUSD[i] = getValueInBaseCurrency(V3_PRICE_ORACLE, rewardsTokens[i], rewardsAmounts[i]);
+                (address[] memory rewardTokens, uint[] memory rewardAmounts) = V3_REWARDS_CONTROLLER.getAllUserRewards(scaledBalanceTokens, user);
+                uint length = rewardAmounts.length;
+
+                Reward[] memory rewards = new Reward[](length);
+                for (uint i = 0; i < length; i ++) {
+                    address rewardToken = rewardTokens[i];
+                    uint rewardAmount = rewardAmounts[i];
+
+                    rewards[i].token = rewardToken;
+                    rewards[i].symbol = IERC20UpgradeableExt(rewardToken).symbol();
+                    rewards[i].decimals = IERC20UpgradeableExt(rewardToken).decimals();
+                    rewards[i].rewardAmount = rewardAmount;
+                    rewards[i].rewardValueInUSD = getValueInBaseCurrency(V3_PRICE_ORACLE, rewardToken, rewardAmount);
                 }
-                return (rewardsTokens, rewardsAmounts, rewardsValuesInUSD);
+                return rewards;
             }
         }
-        return (new address[](0), new uint[](0), new uint[](0));
+        return (new Reward[](0));
     }
 
     /// @notice The returned APRs are scaneld by 18
     function getRewardAPRs(uint version, address asset) external view returns (uint supplyAPR, uint stableBorrowAPR, uint variableBorrowAPR) {
         if (version == uint(VERSION.V2)) {
-            (address aToken, address stableDebtTokenAddress, address variableDebtTokenAddress) = V2_DATA_PROVIDER.getReserveTokensAddresses(asset);
-            address reward = getV2RewardOriginalToken();
-            supplyAPR = getV2RewardAPR(asset, aToken, reward);
-            stableBorrowAPR = getV2RewardAPR(asset, stableDebtTokenAddress, reward);
-            variableBorrowAPR = getV2RewardAPR(asset, variableDebtTokenAddress, reward);
+            if (address(V2_REWARDS_CONTROLLER) != address(0)) {
+                (address aToken, address stableDebtTokenAddress, address variableDebtTokenAddress) = V2_DATA_PROVIDER.getReserveTokensAddresses(asset);
+                address reward = getV2RewardOriginalToken();
+                supplyAPR = getV2RewardAPR(asset, aToken, reward);
+                stableBorrowAPR = getV2RewardAPR(asset, stableDebtTokenAddress, reward);
+                variableBorrowAPR = getV2RewardAPR(asset, variableDebtTokenAddress, reward);
+            }
         } else {
-            (address aToken,, address variableDebtTokenAddress) = V3_DATA_PROVIDER.getReserveTokensAddresses(asset);
-            supplyAPR = getV3RewardAPR(asset, aToken);
-            variableBorrowAPR = getV3RewardAPR(asset, variableDebtTokenAddress);
+            if (address(V3_REWARDS_CONTROLLER) != address(0)) {
+                (address aToken,, address variableDebtTokenAddress) = V3_DATA_PROVIDER.getReserveTokensAddresses(asset);
+                supplyAPR = getV3RewardAPR(asset, aToken);
+                variableBorrowAPR = getV3RewardAPR(asset, variableDebtTokenAddress);
+            }
         }
     }
 
