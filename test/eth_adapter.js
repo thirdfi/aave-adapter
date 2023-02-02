@@ -56,6 +56,7 @@ describe("Adapter on Ethereum", async () => {
 
       await adapter.getUserAccountData(version, deployer.address);
       await adapter.getAllUserRewards(version, [], deployer.address);
+      await adapter.getRewardAPRs(version, weth.address);
     });
   });
 

@@ -93,10 +93,6 @@ interface V2_IAToken is IERC20Upgradeable {
     function _nonces(address owner) external view returns (uint256);
 }
 
-interface IPriceOracle {
-  function getAssetPrice(address asset) external view returns (uint256);
-}
-
 interface IAaveIncentivesController {
   function getAssetData(address asset) external view returns (uint256, uint256, uint256);
   function assets(address asset) external view returns (uint128, uint128, uint256);
@@ -111,4 +107,14 @@ interface IAaveIncentivesController {
   function REWARD_TOKEN() external view returns (address);
   function PRECISION() external view returns (uint8);
   function DISTRIBUTION_END() external view returns (uint256);
+  function STAKE_TOKEN() external view returns (address);
+}
+
+interface IStakedTokenV2 {
+  function STAKED_TOKEN() external view returns (address);
+}
+
+interface IAaveOracle {
+    function getAssetPrice(address asset) external view returns (uint256);
+    function getAssetsPrices(address[] calldata assets) external view returns (uint256[] memory);
 }

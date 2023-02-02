@@ -6,6 +6,7 @@ import "@openzeppelin/contracts-upgradeable/token/ERC20/utils/SafeERC20Upgradeab
 import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import {IWETH} from '@aave/core-v3/contracts/misc/interfaces/IWETH.sol';
 import "../interfaces/IChainlinkAggregator.sol";
+import "../interfaces/IERC20UpgradeableExt.sol";
 import "../libs/BaseRelayRecipient.sol";
 import "./aave2/Aave2DataTypes.sol";
 import "./aave2/Aave2Interfaces.sol";
@@ -21,12 +22,14 @@ contract AaveAdapter is OwnableUpgradeable, BaseRelayRecipient {
     IAaveProtocolDataProvider public immutable V2_DATA_PROVIDER;
     ILendingPool public immutable V2_LENDING_POOL;
     IAaveIncentivesController public immutable V2_REWARDS_CONTROLLER;
+    IAaveOracle public immutable V2_PRICE_ORACLE;
     IChainlinkAggregator public immutable V2_BASE_CURRENCY_PRICE_SOURCE;
 
     IPoolAddressesProvider public immutable V3_ADDRESSES_PROVIDER;
     IPoolDataProvider public immutable V3_DATA_PROVIDER;
     IPool public immutable V3_POOL;
     IRewardsController public immutable V3_REWARDS_CONTROLLER;
+    IAaveOracle public immutable V3_PRICE_ORACLE;
 
     IWETH public immutable WNATIVE;
     address public immutable V2_aWNATIVE;
@@ -39,6 +42,8 @@ contract AaveAdapter is OwnableUpgradeable, BaseRelayRecipient {
     uint internal constant IR_MODE_STABLE = 1;
 
     address internal constant NATIVE_ASSET = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
+
+    uint internal constant YEAR_IN_SEC = 365 * 1 days;
 
     event Supply(address indexed account, uint version, address indexed asset, uint indexed amount);
     event Withdraw(address indexed account, uint version, address indexed asset, uint indexed amount);
@@ -58,12 +63,14 @@ contract AaveAdapter is OwnableUpgradeable, BaseRelayRecipient {
         V2_DATA_PROVIDER = IAaveProtocolDataProvider(_v2DataProvider);
         V2_ADDRESSES_PROVIDER = ILendingPoolAddressesProvider(v2Supported ? V2_DATA_PROVIDER.ADDRESSES_PROVIDER() : address(0));
         V2_LENDING_POOL = ILendingPool(v2Supported ? V2_ADDRESSES_PROVIDER.getLendingPool() : address(0));
+        V2_PRICE_ORACLE = IAaveOracle(v2Supported ? V2_ADDRESSES_PROVIDER.getPriceOracle() : address(0));
         V2_BASE_CURRENCY_PRICE_SOURCE = IChainlinkAggregator(_v2BaseCurrencyPriceSource);
 
         bool v3Supported = _v3AddressesProvider != address(0) ? true : false;
         V3_ADDRESSES_PROVIDER = IPoolAddressesProvider(_v3AddressesProvider);
         V3_DATA_PROVIDER = IPoolDataProvider(v3Supported ? V3_ADDRESSES_PROVIDER.getPoolDataProvider() : address(0));
         V3_POOL = IPool(v3Supported ? V3_ADDRESSES_PROVIDER.getPool() : address(0));
+        V3_PRICE_ORACLE = IAaveOracle(v3Supported ? V3_ADDRESSES_PROVIDER.getPriceOracle() : address(0));
 
         WNATIVE = IWETH(_wnative);
         (V2_aWNATIVE, V2_stableDebtWNATIVE, V2_variableDebtWNATIVE) = (address(V2_DATA_PROVIDER) != address(0))
@@ -523,26 +530,90 @@ contract AaveAdapter is OwnableUpgradeable, BaseRelayRecipient {
 
     /**
     * @dev Returns a list all rewards of a user, including already accrued and unrealized claimable rewards
-    * @param assets List of incentivized assets to check eligible distributions. It's used only for v3. It should be address of AToken or VariableDebtToken
+    * @param scaledBalanceTokens List of incentivized assets to check eligible distributions. It's used only for v3. It should be address of AToken or VariableDebtToken
     * @param user The address of the user
-    * @return The list of reward addresses
-    * @return The list of unclaimed amount of rewards
+    * @return rewardsTokens The list of reward addresses
+    * @return rewardsAmounts The list of unclaimed reward amount
+    * @return rewardsValuesInUSD The list of unclaimed reward values in USD. It scaled by 8
     **/
-    function getAllUserRewards(uint version, address[] calldata assets, address user) external view returns (address[] memory, uint[] memory) {
+    function getAllUserRewards(uint version, address[] calldata scaledBalanceTokens, address user) external view returns (
+        address[] memory rewardsTokens,
+        uint[] memory rewardsAmounts,
+        uint[] memory rewardsValuesInUSD
+    ) {
         if (version == uint(VERSION.V2)) {
             if (address(V2_REWARDS_CONTROLLER) != address(0)) {
-                address[] memory rewardsTokens = new address[](1);
-                uint[] memory rewardsAmounts = new uint[](1);
+                rewardsTokens = new address[](1);
+                rewardsAmounts = new uint[](1);
+                rewardsValuesInUSD = new uint[](1);
                 rewardsTokens[0] = V2_REWARDS_CONTROLLER.REWARD_TOKEN();
                 rewardsAmounts[0] = V2_REWARDS_CONTROLLER.getUserUnclaimedRewards(user);
-                return (rewardsTokens, rewardsAmounts);
+
+                // NOTE: It supports only Ethereum in V2 markets
+                uint valueInETH = getValueInBaseCurrency(V2_PRICE_ORACLE, getV2RewardOriginalToken(), rewardsAmounts[0]); // It scaled by 18
+                int256 ethPrice = V2_BASE_CURRENCY_PRICE_SOURCE.latestAnswer(); // It scaled by 8
+                rewardsValuesInUSD[0] = valueInETH * uint(ethPrice) / 1e18;
+                return (rewardsTokens, rewardsAmounts, rewardsValuesInUSD);
             }
         } else {
             if (address(V3_REWARDS_CONTROLLER) != address(0)) {
-                return V3_REWARDS_CONTROLLER.getAllUserRewards(assets, user);
+                (rewardsTokens, rewardsAmounts) = V3_REWARDS_CONTROLLER.getAllUserRewards(scaledBalanceTokens, user);
+                rewardsValuesInUSD = new uint[](rewardsAmounts.length);
+                for (uint i = 0; i < rewardsAmounts.length; i ++) {
+                    rewardsValuesInUSD[i] = getValueInBaseCurrency(V3_PRICE_ORACLE, rewardsTokens[i], rewardsAmounts[i]);
+                }
+                return (rewardsTokens, rewardsAmounts, rewardsValuesInUSD);
             }
         }
-        return (new address[](0), new uint[](0));
+        return (new address[](0), new uint[](0), new uint[](0));
+    }
+
+    /// @notice The returned APRs are scaneld by 18
+    function getRewardAPRs(uint version, address asset) external view returns (uint supplyAPR, uint stableBorrowAPR, uint variableBorrowAPR) {
+        if (version == uint(VERSION.V2)) {
+            (address aToken, address stableDebtTokenAddress, address variableDebtTokenAddress) = V2_DATA_PROVIDER.getReserveTokensAddresses(asset);
+            address reward = getV2RewardOriginalToken();
+            supplyAPR = getV2RewardAPR(asset, aToken, reward);
+            stableBorrowAPR = getV2RewardAPR(asset, stableDebtTokenAddress, reward);
+            variableBorrowAPR = getV2RewardAPR(asset, variableDebtTokenAddress, reward);
+        } else {
+            (address aToken,, address variableDebtTokenAddress) = V3_DATA_PROVIDER.getReserveTokensAddresses(asset);
+            supplyAPR = getV3RewardAPR(asset, aToken);
+            variableBorrowAPR = getV3RewardAPR(asset, variableDebtTokenAddress);
+        }
+    }
+
+    function getV2RewardOriginalToken() internal view returns(address) {
+        address reward = V2_REWARDS_CONTROLLER.REWARD_TOKEN();
+        if (reward == V2_REWARDS_CONTROLLER.STAKE_TOKEN()) {
+            reward = IStakedTokenV2(reward).STAKED_TOKEN();
+        }
+        return reward;
+    }
+
+    function getV2RewardAPR(address asset, address scaledBalanceToken, address reward) internal view returns(uint) {
+        uint scaledBalanceTokenInBC = getValueInBaseCurrency(V2_PRICE_ORACLE, asset, IERC20Upgradeable(scaledBalanceToken).totalSupply());
+        (, uint emissionPerSecond,) = V2_REWARDS_CONTROLLER.getAssetData(scaledBalanceToken);
+        return getValueInBaseCurrency(V2_PRICE_ORACLE, reward, YEAR_IN_SEC * emissionPerSecond) * 1e18 / scaledBalanceTokenInBC;
+    }
+
+    function getV3RewardAPR(address asset, address scaledBalanceToken) internal view returns(uint) {
+        address[] memory rewards = V3_REWARDS_CONTROLLER.getRewardsByAsset(scaledBalanceToken);
+        uint scaledBalanceTokenInBC = getValueInBaseCurrency(V3_PRICE_ORACLE, asset, IERC20Upgradeable(scaledBalanceToken).totalSupply());
+        uint rewardsApr;
+        for (uint i = 0; i < rewards.length; i ++) {
+            address reward = rewards[i];
+            (, uint emissionPerSecond,,) = V3_REWARDS_CONTROLLER.getRewardsData(scaledBalanceToken, reward);
+            rewardsApr += getValueInBaseCurrency(V3_PRICE_ORACLE, reward, YEAR_IN_SEC * emissionPerSecond) * 1e18 / scaledBalanceTokenInBC;
+        }
+        return rewardsApr;
+    }
+
+    /// @notice The returned price is scaneld by 18
+    function getValueInBaseCurrency(IAaveOracle priceOracle, address asset, uint amount) internal view returns(uint) {
+        uint priceInBC = priceOracle.getAssetPrice(asset); // The returned price is scaled by 8
+        uint8 _decimals = IERC20UpgradeableExt(asset).decimals();
+        return amount * priceInBC / (10 ** _decimals);
     }
 
     /**

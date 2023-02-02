@@ -54,6 +54,7 @@ describe("Adapter on Avalanche", async () => {
 
       await adapter.getUserAccountData(version, deployer.address);
       await adapter.getAllUserRewards(version, [await adapter.V3_aWNATIVE()], deployer.address);
+      await adapter.getRewardAPRs(version, weth.address);
     });
   });
 
