@@ -49,8 +49,6 @@ contract AaveAdapter is OwnableUpgradeable, BaseRelayRecipient {
 
     uint internal constant IR_MODE_STABLE = 1;
 
-    address internal constant NATIVE_ASSET = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
-
     uint internal constant YEAR_IN_SEC = 365 * 1 days;
 
     event Supply(address indexed account, uint version, address indexed asset, uint indexed amount);
@@ -227,7 +225,7 @@ contract AaveAdapter is OwnableUpgradeable, BaseRelayRecipient {
         } else {
             V3_POOL.supply(address(WNATIVE), msg.value, account, 0);
         }
-        emit Supply(account, version, NATIVE_ASSET, msg.value);
+        emit Supply(account, version, address(WNATIVE), msg.value);
     }
 
     /// @notice The user must approve this SC for the asset's aToken.
@@ -304,7 +302,7 @@ contract AaveAdapter is OwnableUpgradeable, BaseRelayRecipient {
         }
         WNATIVE.withdraw(amountToWithdraw);
         _safeTransferETH(account, amountToWithdraw);
-        emit Withdraw(account, version, NATIVE_ASSET, amountToWithdraw);
+        emit Withdraw(account, version, address(WNATIVE), amountToWithdraw);
     }
 
     /// @notice The user must approve the delegation to this SC for the asset's debtToken.
@@ -346,7 +344,7 @@ contract AaveAdapter is OwnableUpgradeable, BaseRelayRecipient {
         }
         WNATIVE.withdraw(amount);
         _safeTransferETH(account, amount);
-        emit Borrow(account, version, NATIVE_ASSET, amount, interestRateMode);
+        emit Borrow(account, version, address(WNATIVE), amount, interestRateMode);
     }
 
     /// @notice It works for only v3.
@@ -364,7 +362,7 @@ contract AaveAdapter is OwnableUpgradeable, BaseRelayRecipient {
         V3_POOL.borrow(address(WNATIVE), amount, interestRateMode, 0, account);
         WNATIVE.withdraw(amount);
         _safeTransferETH(account, amount);
-        emit Borrow(account, uint(VERSION.V3), NATIVE_ASSET, amount, interestRateMode);
+        emit Borrow(account, uint(VERSION.V3), address(WNATIVE), amount, interestRateMode);
     }
 
     /// @notice The user must approve this SC for the asset.
@@ -399,13 +397,15 @@ contract AaveAdapter is OwnableUpgradeable, BaseRelayRecipient {
     function repayETH(uint version, uint amount, uint interestRateMode) payable public {
         address account = _msgSender();
 
-        uint paybackAmount = amount;
-        if (amount == type(uint).max) {
-            if (version == uint(VERSION.V2)) {
-                paybackAmount = IERC20Upgradeable(interestRateMode == IR_MODE_STABLE ? V2_stableDebtWNATIVE : V2_variableDebtWNATIVE).balanceOf(account);
-            } else {
-                paybackAmount = IERC20Upgradeable(interestRateMode == IR_MODE_STABLE ? V3_stableDebtWNATIVE : V3_variableDebtWNATIVE).balanceOf(account);
-            }
+        uint paybackAmount;
+        if (version == uint(VERSION.V2)) {
+            paybackAmount = IERC20Upgradeable(interestRateMode == IR_MODE_STABLE ? V2_stableDebtWNATIVE : V2_variableDebtWNATIVE).balanceOf(account);
+        } else {
+            paybackAmount = IERC20Upgradeable(interestRateMode == IR_MODE_STABLE ? V3_stableDebtWNATIVE : V3_variableDebtWNATIVE).balanceOf(account);
+        }
+
+        if (amount < paybackAmount) {
+            paybackAmount = amount;
         }
 
         require(msg.value >= paybackAmount, 'msg.value is less than repayment amount');
@@ -418,7 +418,7 @@ contract AaveAdapter is OwnableUpgradeable, BaseRelayRecipient {
 
         uint left = address(this).balance;
         if (left > 0) _safeTransferETH(account, left);
-        emit Repay(account, version, NATIVE_ASSET, paybackAmount-left, interestRateMode);
+        emit Repay(account, version, address(WNATIVE), paybackAmount-left, interestRateMode);
     }
 
     function supplyAndBorrow(uint version,
