@@ -4,16 +4,16 @@ const AddressZero = ethers.constants.AddressZero;
 module.exports = {
   arbitrumTestnet: {
     chainId: 421613,
-    biconomy: "0x67454E169d613a8e9BA6b06af2D267696EAaAf41",
+    biconomy: AddressZero,
     V2: {
       DataProvider: AddressZero,
       BaseCurrencyPriceSource: AddressZero,
     },
     V3: {
-      AddressesProvider: "0xF8aa90E66B8BAe13f2e4aDe6104abAb8eeDaBfdc",
+      AddressesProvider: "0x4EEE0BB72C2717310318f27628B3c8a708E4951C",
     },
     Token: {
-      WETH: "0xCDa739D69067333974cD73A722aB92E5e0ad8a4F",
+      WETH: "0xb83C277172198E8Ec6b841Ff9bEF2d7fa524f797",
     },
   },
 
@@ -25,10 +25,10 @@ module.exports = {
       BaseCurrencyPriceSource: AddressZero,
     },
     V3: {
-      AddressesProvider: "0x1775ECC8362dB6CaB0c7A9C0957cF656A5276c29",
+      AddressesProvider: "0x220c6A7D868FC38ECB47d5E69b99e9906300286A",
     },
     Token: {
-      WAVAX: "0x407287b03D1167593AF113d32093942be13A535f",
+      WAVAX: "0x8d3d33232bfcb7B901846AE7B8E84aE282ee2882",
     },
   },
 
@@ -55,10 +55,10 @@ module.exports = {
       BaseCurrencyPriceSource: AddressZero,
     },
     V3: {
-      AddressesProvider: "0x5343b5bA672Ae99d627A1C87866b8E53F47Db2E6",
+      AddressesProvider: "0xeb7A892BB04A8f836bDEeBbf60897A7Af1Bf5d7F",
     },
     Token: {
-      WMATIC: "0xb685400156cF3CBE8725958DeAA61436727A30c3",
+      WMATIC: "0xf237dE5664D3c2D2545684E76fef02A3A58A364c",
     },
   },
 
@@ -70,10 +70,10 @@ module.exports = {
       BaseCurrencyPriceSource: AddressZero,
     },
     V3: {
-      AddressesProvider: "0x74a328ED938160D702378Daeb7aB2504714B4E4b",
+      AddressesProvider: "0x0b8FAe5f9Bf5a1a5867FB5b39fF4C028b1C2ebA9",
     },
     Token: {
-      WETH: "0x09bADef78f92F20fd5f7a402dbb1d25d4901aAb2",
+      WETH: "0xc5Bf9eb35c7d3a90816436E2a124bdd136e09fFD",
     },
   },
 };
