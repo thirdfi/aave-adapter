@@ -544,7 +544,8 @@ contract AaveAdapter is OwnableUpgradeable, BaseRelayRecipient {
     **/
     function getAllUserRewards(uint version, address[] calldata scaledBalanceTokens, address user) external view returns (Reward[] memory) {
         if (version == uint(VERSION.V2)) {
-            if (address(V2_REWARDS_CONTROLLER) != address(0)) {
+            address rewardOriginalToken = getV2RewardOriginalToken();
+            if (rewardOriginalToken != address(0)) {
                 address rewardToken = V2_REWARDS_CONTROLLER.REWARD_TOKEN();
                 uint rewardAmount = V2_REWARDS_CONTROLLER.getUserUnclaimedRewards(user);
 
@@ -555,7 +556,7 @@ contract AaveAdapter is OwnableUpgradeable, BaseRelayRecipient {
                 rewards[0].rewardAmount = rewardAmount;
 
                 // NOTE: It supports only Ethereum in V2 markets
-                uint valueInETH = getValueInBaseCurrency(V2_PRICE_ORACLE, getV2RewardOriginalToken(), rewardAmount); // It scaled by 18
+                uint valueInETH = getValueInBaseCurrency(V2_PRICE_ORACLE, rewardOriginalToken, rewardAmount); // It scaled by 18
                 int256 ethPrice = V2_BASE_CURRENCY_PRICE_SOURCE.latestAnswer(); // It scaled by 8
                 rewards[0].rewardValueInUSD = valueInETH * uint(ethPrice) / 1e18;
 
@@ -586,12 +587,12 @@ contract AaveAdapter is OwnableUpgradeable, BaseRelayRecipient {
     /// @notice The returned APRs are scaneld by 18
     function getRewardAPRs(uint version, address asset) external view returns (uint supplyAPR, uint stableBorrowAPR, uint variableBorrowAPR) {
         if (version == uint(VERSION.V2)) {
-            if (address(V2_REWARDS_CONTROLLER) != address(0)) {
+            address rewardOriginalToken = getV2RewardOriginalToken();
+            if (rewardOriginalToken != address(0)) {
                 (address aToken, address stableDebtTokenAddress, address variableDebtTokenAddress) = V2_DATA_PROVIDER.getReserveTokensAddresses(asset);
-                address reward = getV2RewardOriginalToken();
-                supplyAPR = getV2RewardAPR(asset, aToken, reward);
-                stableBorrowAPR = getV2RewardAPR(asset, stableDebtTokenAddress, reward);
-                variableBorrowAPR = getV2RewardAPR(asset, variableDebtTokenAddress, reward);
+                supplyAPR = getV2RewardAPR(asset, aToken, rewardOriginalToken);
+                stableBorrowAPR = getV2RewardAPR(asset, stableDebtTokenAddress, rewardOriginalToken);
+                variableBorrowAPR = getV2RewardAPR(asset, variableDebtTokenAddress, rewardOriginalToken);
             }
         } else {
             if (address(V3_REWARDS_CONTROLLER) != address(0)) {
@@ -602,12 +603,14 @@ contract AaveAdapter is OwnableUpgradeable, BaseRelayRecipient {
         }
     }
 
-    function getV2RewardOriginalToken() internal view returns(address) {
-        address reward = V2_REWARDS_CONTROLLER.REWARD_TOKEN();
-        if (reward == V2_REWARDS_CONTROLLER.STAKE_TOKEN()) {
-            reward = IStakedTokenV2(reward).STAKED_TOKEN();
+    function getV2RewardOriginalToken() public view returns(address) {
+        if (address(V2_REWARDS_CONTROLLER) == address(0)) return address(0);
+
+        address rewardToken = V2_REWARDS_CONTROLLER.REWARD_TOKEN();
+        if (rewardToken == V2_REWARDS_CONTROLLER.STAKE_TOKEN()) {
+            return IStakedTokenV2(rewardToken).STAKED_TOKEN();
         }
-        return reward;
+        return rewardToken;
     }
 
     function getV2RewardAPR(address asset, address scaledBalanceToken, address reward) internal view returns(uint) {
