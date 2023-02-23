@@ -4,6 +4,7 @@ const { ethers, deployments } = require("hardhat");
 const { arbitrumMainnet: network_ } = require("../parameters");
 
 describe("Adapter on Avalanche", async () => {
+  const version = 3;
   let adapter;
   let adapterArtifact;
 
