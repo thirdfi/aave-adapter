@@ -14,7 +14,7 @@ npx hardhat deploy --network optimismMainnet --tags optimismMainnet_AaveAdapter
 
 | Network     | Mainnet                                                                                                               | Testnet                                                                                                               |
 | ------------------------ | --------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
-| Arbitrum         |  | [0x7e4C234B1d634DB790592d1550816b19E862F744](https://goerli.arbiscan.io/address/0x7e4C234B1d634DB790592d1550816b19E862F744)
+| Arbitrum         | [0xF93Bf23AB5B35201c5F80A322672f0CDe1aC1f22](https://arbiscan.io/address/0xF93Bf23AB5B35201c5F80A322672f0CDe1aC1f22) | [0x7e4C234B1d634DB790592d1550816b19E862F744](https://goerli.arbiscan.io/address/0x7e4C234B1d634DB790592d1550816b19E862F744)
 | Avalanche        |  | [0x75ea2D542dAa5B1D7B321200DE950fB599ffdE8a](https://testnet.snowtrace.io/address/0x75ea2D542dAa5B1D7B321200DE950fB599ffdE8a)
 | Ethereum         |  | [0xE52d24eAF593A51126D45f3547037DF54a4233f0](https://goerli.etherscan.io/address/0xE52d24eAF593A51126D45f3547037DF54a4233f0)
 | Optimism         |  | [0x7e4C234B1d634DB790592d1550816b19E862F744](https://goerli-optimism.etherscan.io/address/0x7e4C234B1d634DB790592d1550816b19E862F744)
