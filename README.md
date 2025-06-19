@@ -1,4 +1,6 @@
-# securo-aave-adapter
+# Aave Adapter
+
+These contracts are used for simplifying the contract interactions with AaveV2 and AaveV2 on multiple chains. 
 
 ## Deploy and Verify contracts
 
