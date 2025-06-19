@@ -96,8 +96,8 @@ const config: HardhatUserConfig = {
     },
     maticMainnet: {
       ...sharedNetworkConfig,
-      url: `https://polygon-mainnet.g.alchemy.com/v2/${process.env.ALCHEMY_POLYGON_MAINNET_API_KEY}`,
-      // url: `https://rpc-mainnet.maticvigil.com`, // ethers.provider.getStorageAt is failed with this url
+      // url: `https://polygon-mainnet.g.alchemy.com/v2/${process.env.ALCHEMY_POLYGON_MAINNET_API_KEY}`,
+      url: `https://rpc-mainnet.maticvigil.com`, // ethers.provider.getStorageAt is failed with this url
     },
     maticMumbai: {
       ...sharedNetworkConfig,
